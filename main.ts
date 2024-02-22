@@ -11,6 +11,10 @@ import { dobSchema, twPhotoSchema, twVideoSchema } from "./schema.ts";
 
 const kv = await Deno.openKv();
 
+if (Deno.env.get("ENABLE")) {
+  await kv.set(["enable"], true);
+}
+
 Deno.cron("dob", { hour: { every: 1 } }, { backoffSchedule: [] }, async () => {
   if (!((await kv.get<boolean>(["enable"])).value ?? true)) {
     console.log("Invocation skipped");
@@ -21,17 +25,17 @@ Deno.cron("dob", { hour: { every: 1 } }, { backoffSchedule: [] }, async () => {
   } catch (err) {
     const text = `@me\n${err}${
       err?.cause
-        ? ` caused by ${err.cause instanceof Error ? err.cause : JSON.stringify(err.cause)}`
+        ? `\nCaused by ${err.cause instanceof Error ? err.cause : JSON.stringify(err.cause)}`
         : ""
-    }`;
-    console.error(text);
+    }`.slice(0,300);
+    console.error(err);
     await kv.set(["enable"], false);
     await agent.post({
       text,
       facets: [{
         index: { byteStart: 0, byteEnd: 3 },
         features: [{
-          type$: "app.bsky.richtext.facet#mention",
+          $type: "app.bsky.richtext.facet#mention",
           did: "did:plc:adt6lkfilisp26px7ivmpy7l",
         }],
       }],
@@ -332,6 +336,7 @@ async function main() {
       continue;
     }
     console.log(`Process id: ${post.id}, time: ${post.post_date.getTime()}`);
+    console.debug(post);
     await dob2bsky(post).then(() => {
       console.log(`Posted id: ${post.id}, time: ${post.post_date.getTime()}`);
       return new Promise((resolve) => setTimeout(resolve, 10000));
