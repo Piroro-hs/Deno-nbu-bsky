@@ -225,7 +225,7 @@ async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
       const video = dob.media
         ?.filter((media): media is z.infer<typeof twVideoSchema> => media.type !== "photo")[0];
       text = textSegments.join("");
-      embed = dob.media && video
+      embed = (dob.media && (video
         ? {
           uri: video.variants.filter((variant) => variant.content_type === "video/mp4")
             .reduce<[number, string?]>(
@@ -236,7 +236,7 @@ async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
           description: `from ${dob.account.account_name}`,
           thumb: video.preview_image_url,
         }
-        : { images: (dob.media as z.infer<typeof twPhotoSchema>[]).map((photo) => photo.url) };
+        : { images: (dob.media as z.infer<typeof twPhotoSchema>[]).map((photo) => photo.url) })) ?? undefined;
       break;
     }
     case "yt": {
