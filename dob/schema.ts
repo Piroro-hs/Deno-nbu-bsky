@@ -34,18 +34,20 @@ const twVideoVariantSchema = z.object({
   content_type: z.enum(["video/mp4", "application/x-mpegURL"]),
 });
 
-export const twVideoSchema = z.object({
+const twVideoSchema = z.object({
   type: z.enum(["video", "animated_gif"]),
   variants: z.array(twVideoVariantSchema),
   media_key: z.string(),
   preview_image_url: z.string().url(),
 });
+export type twVideoSchema = z.infer<typeof twVideoSchema>;
 
-export const twPhotoSchema = z.object({
+const twPhotoSchema = z.object({
   type: z.literal("photo"),
   media_key: z.string(),
   url: z.string().url(),
 });
+export type twPhotoSchema = z.infer<typeof twPhotoSchema>;
 
 const twMediaSchema = z.discriminatedUnion("type", [
   twVideoSchema,
@@ -121,3 +123,4 @@ export const dobSchema = z.discriminatedUnion("source_type", [
   ytSchema,
   articleSchema,
 ]);
+export type dobSchema = z.infer<typeof dobSchema>;

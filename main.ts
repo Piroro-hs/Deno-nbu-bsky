@@ -3,11 +3,10 @@ import { unescape } from "https://deno.land/std@0.215.0/html/entities.ts";
 import atp from "npm:@atproto/api@^0.9.6";
 // import { XRPCError } from "npm:@atproto/xrpc@^0.4.1";
 import Graphemer from "npm:graphemer@^1.4.0";
-import { DOMParser } from "npm:linkedom@^0.16.8";
-import { z } from "npm:zod@^3.21.4";
 
 import { agent, post as bskyPost } from "./bsky.ts";
-import { dobSchema, twPhotoSchema, twVideoSchema } from "./schema.ts";
+import { fetchDobArticles } from "./dob/mod.ts";
+import { dobSchema, twPhotoSchema, twVideoSchema } from "./dob/schema.ts";
 
 const kv = await Deno.openKv();
 
@@ -15,8 +14,8 @@ if (Deno.env.get("ENABLE")) {
   await kv.set(["enable"], true);
 }
 
-Deno.cron("dob", { hour: { every: 1 } }, { backoffSchedule: [] }, async () => {
-  if (!((await kv.get<boolean>(["enable"])).value ?? true)) {
+Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () => {
+  if (!(await kv.get<boolean>(["enable"])).value) {
     console.log("Invocation skipped");
     return;
   }
@@ -27,7 +26,7 @@ Deno.cron("dob", { hour: { every: 1 } }, { backoffSchedule: [] }, async () => {
       err?.cause
         ? `\nCaused by ${err.cause instanceof Error ? err.cause : JSON.stringify(err.cause)}`
         : ""
-    }`.slice(0,300);
+    }`.slice(0, 300);
     console.error(err);
     await kv.set(["enable"], false);
     await agent.post({
@@ -44,40 +43,11 @@ Deno.cron("dob", { hour: { every: 1 } }, { backoffSchedule: [] }, async () => {
   }
 });
 
-async function getDobApiKey(): Promise<string> {
-  const document = (new DOMParser()).parseFromString(
-    await fetch("https://denonbu.jp").then((res) => res.text()),
-    "text/html",
-  );
-  return Promise.any(
-    Array.from(
-      document.querySelectorAll("script[src^=/_next/static/chunks/]") as ArrayLike<{ src: string }>,
-    ).map(async (script) => {
-      const chunk = await fetch(`https://denonbu.jp${script.src}`).then((res) => res.text());
-      const match = /"X-API-KEY":"(\w+)"/.exec(chunk);
-      return match?.[1] ?? Promise.reject(new Error("X-API-KEY not found"));
-    }),
-  );
-}
-
-async function dobRequest(
-  path: string,
-  { key, token }: { key: string; token?: string },
-): Promise<unknown> {
-  const { status, payload } = await fetch(
-    `https://denonbu.jp/backend-api/v1.0.0/${path}`,
-    { headers: { "X-API-KEY": key, ...token ? { Authorization: `Bearer ${token}` } : {} } },
-  ).then((res) => res.json()) as { status: "SUCCESS" | "ERROR"; payload: unknown };
-  return status === "SUCCESS"
-    ? payload
-    : Promise.reject(new Error(`API request for ${path} failed`, { cause: payload }));
-}
-
 async function expandShortendLink(link: string): Promise<string> {
   return (await fetch(link, { redirect: "manual" })).headers.get("Location") || link;
 }
 
-async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
+async function dob2bsky(dob: dobSchema): Promise<void> {
   // const postDate;
   let text = "";
   let facets: atp.AppBskyRichtextFacet.Main[] = [];
@@ -222,8 +192,7 @@ async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
         }],
       });
       textSegments.push(footer);
-      const video = dob.media
-        ?.filter((media): media is z.infer<typeof twVideoSchema> => media.type !== "photo")[0];
+      const video = dob.media?.filter((media): media is twVideoSchema => media.type !== "photo")[0];
       text = textSegments.join("");
       embed = (dob.media && (video
         ? {
@@ -236,7 +205,7 @@ async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
           description: `from ${dob.account.account_name}`,
           thumb: video.preview_image_url,
         }
-        : { images: (dob.media as z.infer<typeof twPhotoSchema>[]).map((photo) => photo.url) })) ?? undefined;
+        : { images: (dob.media as twPhotoSchema[]).map((photo) => photo.url) })) ?? undefined;
       break;
     }
     case "yt": {
@@ -297,42 +266,18 @@ async function dob2bsky(dob: z.infer<typeof dobSchema>): Promise<void> {
 }
 
 async function main() {
-  const LAST_POST_ID = (await kv.get<number>(["last_post", "id"])).value ?? 2905;
-  const LAST_POST_AT = (await kv.get<Date>(["last_post", "at"])).value ?? new Date(1708601676000);
-  console.log(`Last id: ${LAST_POST_ID}, time: ${LAST_POST_AT.getTime()}`);
+  const LAST_POST = (await kv.get<{ id: number; at: Date }>(["last_post"])).value ??
+    { id: 2916, at: new Date(1708693530000) };
+  console.log(`Last id: ${LAST_POST.id}, time: ${LAST_POST.at.getTime()}`);
 
-  const key = await getDobApiKey();
-  console.log(`key: ${key}`);
-
-  const { token } = await dobRequest(
-    "auths/token/get",
-    { key },
-  ) as { token: string; expires: number };
-  console.log(`token: ${token}`);
-
-  let total: number | undefined = undefined;
-  let offset = 0;
-  const res: z.infer<typeof dobSchema>[] = [];
-  do {
-    const dob = await dobRequest(
-      `contents/search?limit=60&offset=${offset}`,
-      { key, token },
-    ) as { result: { total: number; per_page: number }; items: unknown[] };
-    total ??= dob.result.total;
-    if (total !== dob.result.total) {
-      throw new Error("Bad luck!");
-    }
-    res.push(...dob.items.map((item) => dobSchema.parse(item)));
-    offset += dob.items.length;
-  } while (res.at(-1)!.post_date >= LAST_POST_AT);
-
+  const posts = await fetchDobArticles(LAST_POST.at);
   console.log("Fetched");
 
   let skip = true;
-  for (let i = res.length - 1; i >= 0; i--) {
-    const post = res[i];
+  for (let i = posts.length - 1; i >= 0; i--) {
+    const post = posts[i];
     if (skip) {
-      skip = !(post.id === LAST_POST_ID && post.post_date.getTime() === LAST_POST_AT.getTime());
+      skip = !(post.id === LAST_POST.id && post.post_date.getTime() === LAST_POST.at.getTime());
       continue;
     }
     console.log(`Process id: ${post.id}, time: ${post.post_date.getTime()}`);
@@ -347,8 +292,7 @@ async function main() {
         return Promise.reject(err);
       }
     });
-    await kv.set(["last_post", "id"], post.id);
-    await kv.set(["last_post", "at"], post.post_date);
+    await kv.set(["last_post"], { id: post.id, at: post.post_date });
   }
 
   console.log("End");
