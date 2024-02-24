@@ -8,35 +8,17 @@ export const agent = new atp.BskyAgent({ service });
 
 await agent.login({ identifier, password });
 
-// async function fetchUploadImageBlob(
-//   url: string,
-// ): Promise<atp.ComAtprotoRepoUploadBlob.Response> {
-//   const { body, encoding } = await fetch(url).then(({ body, headers }) =>
-//     body
-//       ? { body, encoding: headers.get("Content-Type") || "image/*" }
-//       : Promise.reject(new Error("Thumbnail fetch returns null"))
-//   );
-//   return agent.uploadBlob(
-//     body as unknown as Parameters<atp.BskyAgent["uploadBlob"]>[0], // Force ReadableStream for input
-//     { encoding },
-//   ).catch((err) =>
-//     // This happens for larger blob
-//     err.error === "PayloadTooLarge" ? fetchResizeUploadImageBlob(url) : Promise.reject(err)
-//   );
-// }
 function fetchUploadImageBlob(
   url: string,
 ): Promise<atp.ComAtprotoRepoUploadBlob.Response> {
   return fetch(url).then((res) =>
-    res.body
-      ? agent.uploadBlob(
-        res.body as unknown as Parameters<atp.BskyAgent["uploadBlob"]>[0], // Force ReadableStream for input
-        { encoding: res.headers.get("Content-Type") || "image/*" },
-      )
-      : Promise.reject(new Error("Thumbnail fetch returns null"))
-  ).catch((err) =>
-    // This happens for larger blob
-    err.error === "PayloadTooLarge" ? fetchResizeUploadImageBlob(url) : Promise.reject(err)
+    !res.body ? Promise.reject(new Error("Thumbnail fetch returns null")) : agent.uploadBlob(
+      res.body as unknown as Parameters<atp.BskyAgent["uploadBlob"]>[0], // Force ReadableStream for input
+      { encoding: res.headers.get("Content-Type") || "image/*" },
+    ).catch((err) =>
+      // This happens for larger blob
+      err.error === "PayloadTooLarge" ? fetchResizeUploadImageBlob(url) : Promise.reject(err)
+    )
   );
 }
 
@@ -75,16 +57,20 @@ async function fetchResizeUploadImageBlob(
   return agent.uploadBlob(resized, { encoding: "image/jpeg" });
 }
 
-export async function post(
-  text: string,
-  facets: atp.AppBskyRichtextFacet.Main[],
-  createdAt: Date,
+export type PostMediaUnresolved = {
+  text: string;
+  facets: atp.AppBskyRichtextFacet.Main[];
+  createdAt: Date;
   embed?: { images: string[] } | {
     uri: string;
     title: string;
     description: string;
     thumb?: string;
-  },
+  };
+};
+
+export async function post(
+  { text, facets, createdAt, embed }: PostMediaUnresolved,
 ): Promise<{ uri: string; cid: string }> {
   const embedFactory = embed &&
     (async (fetchUploadBlob: (url: string) => Promise<atp.ComAtprotoRepoUploadBlob.Response>) => (
