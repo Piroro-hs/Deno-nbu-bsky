@@ -99,112 +99,116 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
         return Promise.reject(new Error("Skipped as reply"));
       }
       const body = unescape(dob.body);
-      const account = `${dob.account.account_name}@${dob.account.account_id}`;
-      const footer = `${account} ⧉🐦︎`;
-      const textSegments: string[] = [];
-      const textSegmentsInfo = [];
-      const facetRegex = /(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*|([#＃]\S+)/vdg;
+      const textSegments: {
+        text: string;
+        data:
+          & ({ type: "text" | "tag" } | { type: "tco"; tco: Promise<string>; padEnd: boolean })
+          & { byteEnd?: number; graphemeEnd?: number };
+      }[] = [];
+      const facetRegex = /([#＃]\S+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
       let lastIndex = 0;
-      for (const { "1": tco, "2": tag, indices } of body.matchAll(facetRegex)) {
-        textSegments.push(body.slice(lastIndex, indices![0][0]));
-        textSegmentsInfo.push({ type: "text" });
-        if (tco) {
-          textSegments.push("");
-          textSegmentsInfo.push({
-            type: "tco",
-            tco: expandShortendLink(tco),
-            padEnd: indices![0][1] !== indices![1][1],
-          });
-        } else {
-          textSegments.push(tag);
-          textSegmentsInfo.push({ type: "tag" });
-        }
+      for (const { "1": tag, "2": tco, indices } of body.matchAll(facetRegex)) {
+        textSegments.push({ text: body.slice(lastIndex, indices![0][0]), data: { type: "text" } });
+        textSegments.push(
+          tag ? { text: tag, data: { type: "tag" } } : {
+            text: "",
+            data: {
+              type: "tco",
+              tco: expandShortendLink(tco),
+              padEnd: indices![0][1] !== indices![2][1],
+            },
+          },
+        );
         lastIndex = indices![0][1];
       }
-      textSegments.push(body.slice(lastIndex));
-      textSegmentsInfo.push({ type: "text" });
+      textSegments.push({ text: body.slice(lastIndex), data: { type: "text" } });
       const encoder = new TextEncoder();
       const graphemer = new Graphemer.default();
-      const allowedGraphemeLength = 300 - graphemer.countGraphemes(footer) - 2; // \n\n
       let byteLength = 0;
       let graphemeLength = 0;
-      let skip = false;
-      for (let i = 0; i < textSegments.length; i++) {
-        if (skip) {
-          textSegments[i] = "";
-          continue;
-        }
-        switch (textSegmentsInfo[i].type) {
-          case "text": {
-            const nextGraphemeLength = graphemer.countGraphemes(textSegments[i]);
-            if (graphemeLength + nextGraphemeLength > allowedGraphemeLength) { // FIXME: この辺全部壊れてる graphemeLength === allowedGraphemeLengthで終わるとまずい
-              const leftGraphemeLength = allowedGraphemeLength - graphemeLength - 1;
-              const iter = graphemer.iterateGraphemes(textSegments[i]);
-              graphemeLength = allowedGraphemeLength;
-              textSegments[i] = `${
-                Array.from({ length: leftGraphemeLength }, () => iter.next().value).join("")
-              }…`;
-              skip = true;
-            } else {
-              graphemeLength += nextGraphemeLength;
-            }
-            byteLength += encoder.encode(textSegments[i]).byteLength;
+      for (const segments of textSegments) {
+        switch (segments.data.type) {
+          case "text":
+            byteLength += encoder.encode(segments.text).byteLength;
+            graphemeLength += graphemer.countGraphemes(segments.text);
+            break;
+          case "tag": {
+            const byteStart = byteLength;
+            byteLength += encoder.encode(segments.text).byteLength;
+            graphemeLength += graphemer.countGraphemes(segments.text);
+            facets.push({
+              index: { byteStart, byteEnd: byteLength },
+              features: [{ $type: "app.bsky.richtext.facet#tag", tag: segments.text.slice(1) }],
+            });
             break;
           }
           case "tco": {
-            const url = await textSegmentsInfo[i].tco!;
+            const url = await segments.data.tco;
             if (
               !url.startsWith(`https://twitter.com/i/web/status/${dob.uid}`) &&
               !url.startsWith(`${dob.account.url}/status/${dob.uid}`)
             ) {
               const hostname = new URL(url).hostname;
-              const nextGraphemeLength = graphemer.countGraphemes(hostname);
-              if (graphemeLength + nextGraphemeLength > allowedGraphemeLength) {
-                skip = true;
-                break;
-              }
               const byteStart = byteLength;
               byteLength += encoder.encode(hostname).byteLength;
+              graphemeLength += graphemer.countGraphemes(hostname);
+              segments.text = hostname;
               facets.push({
                 index: { byteStart, byteEnd: byteLength },
                 features: [{ $type: "app.bsky.richtext.facet#link", uri: url }],
               });
-              graphemeLength += nextGraphemeLength;
-              textSegments[i] = hostname;
-              if (textSegmentsInfo[i].padEnd && graphemeLength < allowedGraphemeLength) {
+              if (segments.data.padEnd) {
                 byteLength++;
                 graphemeLength++;
-                textSegments[i] += " ";
+                segments.text += " ";
               }
             }
-            break;
-          }
-          case "tag": {
-            const tag = textSegments[i];
-            const nextGraphemeLength = graphemer.countGraphemes(tag);
-            if (graphemeLength + nextGraphemeLength > allowedGraphemeLength) {
-              skip = true;
-              break;
-            }
-            const byteStart = byteLength;
-            byteLength += encoder.encode(tag).byteLength;
-            facets.push({
-              index: { byteStart, byteEnd: byteLength },
-              features: [{ $type: "app.bsky.richtext.facet#tag", tag: tag.slice(1) }],
-            });
-            graphemeLength += nextGraphemeLength;
             break;
           }
           default:
             break;
         }
+        segments.data.byteEnd = byteLength;
+        segments.data.graphemeEnd = graphemeLength;
       }
-      if (textSegments.some((text) => text)) {
+      const account = `${dob.account.account_name}@${dob.account.account_id}`;
+      const footer = `${account} ⧉🐦︎`;
+      const allowedGraphemeLength = 300 - graphemer.countGraphemes(footer) - 3; // …\n\n
+      if (graphemeLength > allowedGraphemeLength + 1) { // …
+        let end = textSegments.findIndex((segment) =>
+          segment.data.graphemeEnd! > allowedGraphemeLength - 1
+        );
+        const segment = textSegments[end];
+        const prevSegment = textSegments[end - 1];
+        if (segment.data.type === "text") {
+          const leftGraphemeLength = allowedGraphemeLength - prevSegment.data.graphemeEnd!;
+          const iter = graphemer.iterateGraphemes(segment.text);
+          segment.text = Array.from({ length: leftGraphemeLength }, () => iter.next().value)
+            .join("");
+          segment.data.byteEnd = prevSegment.data.byteEnd! +
+            encoder.encode(segment.text).byteLength;
+          segment.data.graphemeEnd = allowedGraphemeLength;
+          end++;
+        } else if (
+          segment.data.type === "tco" && segment.data.padEnd &&
+          segment.data.graphemeEnd === allowedGraphemeLength + 1
+        ) {
+          segment.text = segment.text.slice(0, -1);
+          segment.data.byteEnd!--;
+          segment.data.graphemeEnd!--;
+          end++;
+        }
+        textSegments.splice(end, Infinity, { text: "…", data: { type: "text" } });
+        byteLength = textSegments[end - 1].data.byteEnd!;
+        graphemeLength = textSegments[end - 1].data.graphemeEnd!;
+      }
+      if (textSegments.some(({ text }) => text)) {
         byteLength += 2;
-        textSegments.push("\n\n");
+        textSegments.push({ text: "\n\n", data: { type: "tag" } });
       }
       const byteStart = byteLength;
       byteLength += encoder.encode(account).byteLength;
+      textSegments.push({ text: footer, data: { type: "text" } });
       facets.push({
         index: { byteStart, byteEnd: byteLength },
         features: [{ $type: "app.bsky.richtext.facet#link", uri: dob.account.url }],
@@ -216,9 +220,8 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
           uri: `${dob.account.url}/status/${dob.uid}`,
         }],
       });
-      textSegments.push(footer);
+      text = textSegments.map(({ text }) => text).join("");
       const video = dob.media?.filter((media): media is twVideoSchema => media.type !== "photo")[0];
-      text = textSegments.join("");
       embed = (dob.media && (video
         ? {
           uri: video.variants.filter((variant) => variant.content_type === "video/mp4")
