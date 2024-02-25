@@ -105,7 +105,8 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
           & ({ type: "text" | "tag" } | { type: "tco"; tco: Promise<string>; padEnd: boolean })
           & { byteEnd?: number; graphemeEnd?: number };
       }[] = [];
-      const facetRegex = /([#＃]\S+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
+      const facetRegex =
+        /([#＃]\p{Letter}+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
       let lastIndex = 0;
       for (const { "1": tag, "2": tco, indices } of body.matchAll(facetRegex)) {
         textSegments.push({ text: body.slice(lastIndex, indices![0][0]), data: { type: "text" } });
