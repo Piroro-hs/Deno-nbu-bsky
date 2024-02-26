@@ -53,7 +53,7 @@ async function main() {
     }
     console.log(`Process id: ${dob.id}, time: ${dob.post_date.getTime()}`);
     console.debug(dob);
-    (async () => await post(await dob2Bsky(dob)))().then(() => {
+    await (async () => post(await dob2Bsky(dob)))().then(() => {
       console.log(`Posted id: ${dob.id}, time: ${dob.post_date.getTime()}`);
       return new Promise((resolve) => setTimeout(resolve, 10000));
     }, (err) => {
