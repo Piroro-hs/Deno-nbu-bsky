@@ -93,6 +93,9 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
         "Ema_Toramaru",
         "Neri_Amemura",
         "Momoko_Shoji",
+        "ka___n000",
+        "madoka0203_love",
+        "tanimarika0105",
       ];
       const reply = dob.body.match(/^@(\w{1,15})/);
       if (reply && !knownAccounts.includes(reply[1])) {
@@ -106,7 +109,7 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
           & { byteEnd?: number; graphemeEnd?: number };
       }[] = [];
       const facetRegex =
-        /([#＃]\p{Letter}+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
+        /([#＃][\p{L}\p{N}\p{Pd}]+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
       let lastIndex = 0;
       for (const { "1": tag, "2": tco, indices } of body.matchAll(facetRegex)) {
         textSegments.push({ text: body.slice(lastIndex, indices![0][0]), data: { type: "text" } });
