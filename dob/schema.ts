@@ -40,14 +40,14 @@ const twVideoSchema = z.object({
   media_key: z.string(),
   preview_image_url: z.string().url(),
 });
-export type twVideoSchema = z.infer<typeof twVideoSchema>;
+export type TwVideo = z.infer<typeof twVideoSchema>;
 
 const twPhotoSchema = z.object({
   type: z.literal("photo"),
   media_key: z.string(),
   url: z.string().url(),
 });
-export type twPhotoSchema = z.infer<typeof twPhotoSchema>;
+export type TwPhoto = z.infer<typeof twPhotoSchema>;
 
 const twMediaSchema = z.discriminatedUnion("type", [
   twVideoSchema,
@@ -123,4 +123,4 @@ export const dobSchema = z.discriminatedUnion("source_type", [
   ytSchema,
   articleSchema,
 ]);
-export type dobSchema = z.infer<typeof dobSchema>;
+export type Dob = z.infer<typeof dobSchema>;

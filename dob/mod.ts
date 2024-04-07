@@ -4,7 +4,7 @@ import atp from "npm:@atproto/api@^0.9.6";
 import Graphemer from "npm:graphemer@^1.4.0";
 import { DOMParser } from "npm:linkedom@^0.16.8";
 
-import { dobSchema, twPhotoSchema, twVideoSchema } from "./schema.ts";
+import { Dob, dobSchema, TwPhoto, TwVideo } from "./schema.ts";
 import { PostMediaUnresolved } from "../bsky.ts";
 import { expandShortendLink } from "../utils.ts";
 
@@ -43,7 +43,7 @@ async function dobRequestRaw(
  * @param since - Oldest date of posts
  * @returns Array of fetched Dob posts in reverse-chronological order
  */
-export async function fetchDobArticles(since: Date): Promise<dobSchema[]> {
+export async function fetchDobArticles(since: Date): Promise<Dob[]> {
   const key = await getDobApiKey();
   console.log(`key: ${key}`);
 
@@ -55,7 +55,7 @@ export async function fetchDobArticles(since: Date): Promise<dobSchema[]> {
 
   let total: number | undefined = undefined;
   let offset = 0;
-  const dobs: dobSchema[] = [];
+  const dobs: Dob[] = [];
   do {
     const res = await dobRequestRaw(
       `contents/search?limit=60&offset=${offset}`,
@@ -72,7 +72,7 @@ export async function fetchDobArticles(since: Date): Promise<dobSchema[]> {
   return dobs.slice(0, dobs.findIndex((dob) => dob.post_date < since));
 }
 
-export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
+export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
   // const postDate;
   let text = "";
   let facets: PostMediaUnresolved["facets"] = [];
@@ -108,10 +108,10 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
           & ({ type: "text" | "tag" } | { type: "tco"; tco: Promise<string>; padEnd: boolean })
           & { byteEnd?: number; graphemeEnd?: number };
       }[] = [];
-      const facetRegex =
-        /([#＃][\p{L}\p{N}\p{Pd}]+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
+      const FACET_REGEX =
+        /([#＃][\p{L}\p{N}\p{Pd}_]+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
       let lastIndex = 0;
-      for (const { "1": tag, "2": tco, indices } of body.matchAll(facetRegex)) {
+      for (const { "1": tag, "2": tco, indices } of body.matchAll(FACET_REGEX)) {
         textSegments.push({ text: body.slice(lastIndex, indices![0][0]), data: { type: "text" } });
         textSegments.push(
           tag ? { text: tag, data: { type: "tag" } } : {
@@ -180,7 +180,7 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
       const allowedGraphemeLength = 300 - graphemer.countGraphemes(footer) - 3; // …\n\n
       if (graphemeLength > allowedGraphemeLength + 1) { // …
         let end = textSegments.findIndex((segment) =>
-          segment.data.graphemeEnd! > allowedGraphemeLength - 1
+          segment.data.graphemeEnd! > allowedGraphemeLength
         );
         const segment = textSegments[end];
         const prevSegment = textSegments[end - 1];
@@ -225,7 +225,7 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
         }],
       });
       text = textSegments.map(({ text }) => text).join("");
-      const video = dob.media?.filter((media): media is twVideoSchema => media.type !== "photo")[0];
+      const video = dob.media?.filter((media): media is TwVideo => media.type !== "photo")[0];
       embed = (dob.media && (video
         ? {
           uri: video.variants.filter((variant) => variant.content_type === "video/mp4")
@@ -237,7 +237,7 @@ export async function dob2Bsky(dob: dobSchema): Promise<PostMediaUnresolved> {
           description: `from ${dob.account.account_name}`,
           thumb: video.preview_image_url,
         }
-        : { images: (dob.media as twPhotoSchema[]).map((photo) => photo.url) })) ?? undefined;
+        : { images: (dob.media as TwPhoto[]).map((photo) => photo.url) })) ?? undefined;
       break;
     }
     case "yt": {
