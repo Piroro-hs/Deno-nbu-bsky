@@ -38,7 +38,7 @@ async function dobRequestRaw(
 }
 
 /**
- * Fetch Dob posts posted at `since` date and newer.
+ * Fetch Dob posts from at least `since` date and newer.
  *
  * @param since - Oldest date of posts
  * @returns Array of fetched Dob posts in reverse-chronological order
@@ -53,7 +53,7 @@ export async function fetchDobArticles(since: Date): Promise<Dob[]> {
   ) as { token: string; expires: number };
   console.log(`token: ${token}`);
 
-  let total: number | undefined = undefined;
+  let total: number | undefined;
   let offset = 0;
   const dobs: Dob[] = [];
   do {
@@ -69,7 +69,8 @@ export async function fetchDobArticles(since: Date): Promise<Dob[]> {
     offset += res.items.length;
   } while (dobs.at(-1)!.post_date >= since);
 
-  return dobs.slice(0, dobs.findIndex((dob) => dob.post_date < since));
+  // return dobs.slice(0, dobs.findIndex((dob) => dob.post_date < since));
+  return dobs;
 }
 
 export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {

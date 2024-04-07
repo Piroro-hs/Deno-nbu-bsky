@@ -37,20 +37,25 @@ Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () =>
 });
 
 async function main() {
-  const LAST_POST = (await kv.get<{ id: number; at: Date }>(["last_post"])).value ??
-    { id: 2916, at: new Date(1708693530000) };
-  console.log(`Last id: ${LAST_POST.id}, time: ${LAST_POST.at.getTime()}`);
+  let LATEST = (await kv.get<{ id: number; at: Date }>(["latest"])).value ??
+    { id: 3350, at: new Date(1712398894000) };
+  console.log(`Latest id: ${LATEST.id}, time: ${LATEST.at.getTime()}`);
 
-  const dobs = await fetchDobArticles(LAST_POST.at);
+  const dobs = await fetchDobArticles(LATEST.at);
   console.log("Fetched");
 
-  let skip = true;
+  let prev_at: Date | undefined;
+  let latest = { ...LATEST };
   for (let i = dobs.length - 1; i >= 0; i--) {
-    const dob = dobs[i];
-    if (skip) {
-      skip = !(dob.id === LAST_POST.id && dob.post_date.getTime() === LAST_POST.at.getTime());
+    const dob_raw = dobs[i];
+    if (dob_raw.id <= LATEST.id && dob_raw.post_date <= LATEST.at) {
+      prev_at = dob_raw.post_date;
       continue;
     }
+    const dob = dob_raw.post_date <= prev_at!
+      ? { ...dob_raw, post_date: new Date(prev_at!.getTime() + 1000) }
+      : dob_raw;
+    prev_at = dob.post_date;
     console.log(`Process id: ${dob.id}, time: ${dob.post_date.getTime()}`);
     console.debug(dob);
     await (async () => post(await dob2Bsky(dob)))().then(() => {
@@ -63,7 +68,11 @@ async function main() {
         return Promise.reject(err);
       }
     });
-    await kv.set(["last_post"], { id: dob.id, at: dob.post_date });
+    latest = {
+      id: Math.max(dob_raw.id, latest.id),
+      at: new Date(Math.max(dob_raw.post_date.getTime(), latest.at.getTime())),
+    };
+    await kv.set(["latest"], latest);
   }
 
   console.log("End");
