@@ -231,7 +231,7 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
         ? {
           uri: video.variants.filter((variant) => variant.content_type === "video/mp4")
             .reduce<[number, string?]>(
-              (acc, cur) => cur.bit_rate! > acc[0] ? [cur.bit_rate!, cur.url] : acc,
+              (acc, cur) => cur.bit_rate! >= acc[0] ? [cur.bit_rate!, cur.url] : acc,
               [0, undefined],
             )[1]!,
           title: "📼 Video",
