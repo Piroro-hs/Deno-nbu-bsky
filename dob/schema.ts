@@ -20,6 +20,7 @@ const slugSchema = z.enum([
   "novel",
   "goods",
   "livearchives",
+  "neonakano",
 ]);
 
 const categorySchema = z.object({
