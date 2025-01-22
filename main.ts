@@ -37,18 +37,22 @@ Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () =>
 });
 
 async function main() {
-  const LATEST = (await kv.get<{ id: number; at: Date }>(["latest"])).value ??
-    { id: 3350, at: new Date(1712398894000) };
-  console.log(`Latest id: ${LATEST.id}, time: ${LATEST.at.getTime()}`);
+  const identifier = Deno.env.get("BSKY_ID")!;
+  const password = Deno.env.get("BSKY_PASSWORD")!;
+  await agent.login({ identifier, password });
 
-  const dobs = await fetchDobArticles(LATEST.at);
+  const latest = (await kv.get<{ id: number; at: Date }>(["latest"])).value ??
+    { id: 3350, at: new Date(1712398894000) };
+  console.log(`Latest id: ${latest.id}, time: ${latest.at.getTime()}`);
+
+  const dobs = await fetchDobArticles(latest.at);
   console.log("Fetched");
 
   let prev_at: Date | undefined;
-  let latest = { ...LATEST };
+  let latest_processed = { ...latest };
   for (let i = dobs.length - 1; i >= 0; i--) {
     const dob_raw = dobs[i];
-    if (dob_raw.id <= LATEST.id && dob_raw.post_date <= LATEST.at) {
+    if (dob_raw.id <= latest.id && dob_raw.post_date <= latest.at) {
       prev_at = dob_raw.post_date;
       continue;
     }
@@ -68,11 +72,11 @@ async function main() {
         return Promise.reject(err);
       }
     });
-    latest = {
-      id: Math.max(dob_raw.id, latest.id),
-      at: new Date(Math.max(dob_raw.post_date.getTime(), latest.at.getTime())),
+    latest_processed = {
+      id: Math.max(dob_raw.id, latest_processed.id),
+      at: new Date(Math.max(dob_raw.post_date.getTime(), latest_processed.at.getTime())),
     };
-    await kv.set(["latest"], latest);
+    await kv.set(["latest"], latest_processed);
   }
 
   console.log("End");

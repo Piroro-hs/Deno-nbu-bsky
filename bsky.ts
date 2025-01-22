@@ -1,12 +1,8 @@
 import atp from "npm:@atproto/api@^0.13.29";
 
 const service = "https://bsky.social";
-const identifier = Deno.env.get("BSKY_ID")!;
-const password = Deno.env.get("BSKY_PASSWORD")!;
 
 export const agent = new atp.AtpAgent({ service });
-
-await agent.login({ identifier, password });
 
 function fetchUploadImageBlob(
   url: string,
