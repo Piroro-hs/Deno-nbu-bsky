@@ -85,8 +85,7 @@ const dobCommonSchema = z.object({
   sid: z.number(),
   uid: z.string(),
   body: z.string(),
-  post_date: z.string().regex(/\d{4}-[01]\d-[0-3]\d [0-2]\d:[0-5]\d:[0-6]\d/)
-    .transform((date) => new Date(`${date.replace(" ", "T")}+09:00`)),
+  post_date: z.string().datetime().transform((date) => new Date(date)),
   category: z.array(categorySchema),
   is_fixed: z.number().min(0).max(1).transform(Boolean),
   view_count: z.number().nullable(),
