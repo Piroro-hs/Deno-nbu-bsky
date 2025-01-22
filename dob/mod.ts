@@ -1,8 +1,8 @@
-import { unescape } from "https://deno.land/std@0.215.0/html/entities.ts";
+import { unescape } from "jsr:@std/html@^1.0.3/entities";
 
-import atp from "npm:@atproto/api@^0.9.6";
+import atp from "npm:@atproto/api@^0.13.29";
 import Graphemer from "npm:graphemer@^1.4.0";
-import { DOMParser } from "npm:linkedom@^0.16.8";
+import { DOMParser } from "npm:linkedom@^0.18.6";
 
 import { Dob, dobSchema, TwPhoto, TwVideo } from "./schema.ts";
 import { PostMediaUnresolved } from "../bsky.ts";

@@ -27,10 +27,10 @@ async function fetchResizeUploadImageBlob(
 ): Promise<atp.ComAtprotoRepoUploadBlob.Response> {
   console.log("ImageMagick!!!");
   const [{ ImageMagick, MagickFormat }, buf] = await Promise.all([
-    await import("https://deno.land/x/imagemagick_deno@0.0.26/mod.ts").then(async (im) => {
+    await import("https://deno.land/x/imagemagick_deno@0.0.31/mod.ts").then(async (im) => {
       await im.initialize();
       return im;
-    }) as typeof import("https://deno.land/x/imagemagick_deno@0.0.26/mod.ts"),
+    }) as typeof import("https://deno.land/x/imagemagick_deno@0.0.31/mod.ts"),
     fetch(url).then((res) => res.arrayBuffer()),
   ]);
   const arr = new Uint8Array(buf);
