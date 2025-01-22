@@ -1,4 +1,4 @@
-import { z } from "npm:zod@^3.21.4";
+import { z } from "npm:zod@^3.24.1";
 
 const slugSchema = z.enum([
   "akiba",

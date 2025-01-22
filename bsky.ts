@@ -1,10 +1,10 @@
-import atp from "npm:@atproto/api@^0.9.6";
+import atp from "npm:@atproto/api@^0.13.29";
 
 const service = "https://bsky.social";
 const identifier = Deno.env.get("BSKY_ID")!;
 const password = Deno.env.get("BSKY_PASSWORD")!;
 
-export const agent = new atp.BskyAgent({ service });
+export const agent = new atp.AtpAgent({ service });
 
 await agent.login({ identifier, password });
 
@@ -13,7 +13,7 @@ function fetchUploadImageBlob(
 ): Promise<atp.ComAtprotoRepoUploadBlob.Response> {
   return fetch(url).then((res) =>
     !res.body ? Promise.reject(new Error("Thumbnail fetch returns null")) : agent.uploadBlob(
-      res.body as unknown as Parameters<atp.BskyAgent["uploadBlob"]>[0], // Force ReadableStream for input
+      res.body as unknown as Parameters<atp.AtpAgent["uploadBlob"]>[0], // Force ReadableStream for input
       { encoding: res.headers.get("Content-Type") || "image/*" },
     ).catch((err) =>
       // This happens for larger blob

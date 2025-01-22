@@ -14,7 +14,7 @@ Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () =>
   }
   try {
     await main();
-  } catch (err) {
+  } catch (err: any) {
     const text = `@me\n${err}${
       err?.cause
         ? `\nCaused by ${err.cause instanceof Error ? err.cause : JSON.stringify(err.cause)}`
@@ -37,7 +37,7 @@ Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () =>
 });
 
 async function main() {
-  let LATEST = (await kv.get<{ id: number; at: Date }>(["latest"])).value ??
+  const LATEST = (await kv.get<{ id: number; at: Date }>(["latest"])).value ??
     { id: 3350, at: new Date(1712398894000) };
   console.log(`Latest id: ${LATEST.id}, time: ${LATEST.at.getTime()}`);
 
