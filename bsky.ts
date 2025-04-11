@@ -33,11 +33,12 @@ async function fetchResizeUploadImageBlob(
   let resized = arr;
   let i = 0;
   let step = 0.2;
+  if (resized.byteLength > 1000000 * 10) {
+    i = 1;
+    step = 1;
+  }
   while (resized.byteLength > 1000000) {
-    if (i === 1 && resized.byteLength > 1000000 * 10) {
-      step = 1;
-    }
-    resized = await new Promise((res) =>
+    resized = await new Promise((resolve) =>
       ImageMagick.read(arr, (img) => {
         const ratio = 1 + step * i;
         const { width, height } = img;
@@ -45,7 +46,7 @@ async function fetchResizeUploadImageBlob(
         // img.sharpen()
         img.strip();
         img.quality = 90;
-        img.write(MagickFormat.Jpeg, res);
+        img.write(MagickFormat.Jpeg, resolve);
       })
     );
     i++;
