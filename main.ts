@@ -5,6 +5,8 @@ const kv = await Deno.openKv();
 
 if (Deno.env.get("ENABLE")) {
   await kv.set(["enable"], true);
+} else if (Deno.env.get("DISABLE")) {
+  await kv.set(["enable"], false);
 }
 
 Deno.cron("dob", { minute: { every: 10 } }, { backoffSchedule: [] }, async () => {
