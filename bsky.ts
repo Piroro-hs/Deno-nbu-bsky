@@ -32,11 +32,7 @@ async function fetchResizeUploadImageBlob(
   const arr = new Uint8Array(buf);
   let resized = arr;
   let i = 0;
-  let step = 0.2;
-  if (resized.byteLength > 1000000 * 10) {
-    i = 1;
-    step = 1;
-  }
+  const step = 1;
   while (resized.byteLength > 1000000) {
     resized = await new Promise((resolve) =>
       ImageMagick.read(arr, (img) => {
@@ -49,7 +45,7 @@ async function fetchResizeUploadImageBlob(
         img.write(MagickFormat.Jpeg, resolve);
       })
     );
-    i++;
+    i = Math.max(Math.round(Math.sqrt(resized.byteLength / 1000000)), i + 1);
   }
   return agent.uploadBlob(resized, { encoding: "image/jpeg" });
 }
