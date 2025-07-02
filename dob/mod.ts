@@ -112,6 +112,7 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
           & ({ type: "text" | "tag" } | { type: "tco"; tco: Promise<string>; padEnd: boolean })
           & { byteEnd?: number; graphemeEnd?: number };
       }[] = [];
+      textSegments.push({ text: "", data: { type: "text" } });
       const FACET_REGEX =
         /([#＃][\p{L}\p{N}\p{Pd}_]+)|(https:\/\/t\.co\/[\w\-.~!$&'\(\)*+,;=:@]+)[\s--[\r\n]]*/vdg;
       let lastIndex = 0;
@@ -134,24 +135,24 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
       const graphemer = new Graphemer.default();
       let byteLength = 0;
       let graphemeLength = 0;
-      for (const segments of textSegments) {
-        switch (segments.data.type) {
+      for (const segment of textSegments) {
+        switch (segment.data.type) {
           case "text":
-            byteLength += encoder.encode(segments.text).byteLength;
-            graphemeLength += graphemer.countGraphemes(segments.text);
+            byteLength += encoder.encode(segment.text).byteLength;
+            graphemeLength += graphemer.countGraphemes(segment.text);
             break;
           case "tag": {
             const byteStart = byteLength;
-            byteLength += encoder.encode(segments.text).byteLength;
-            graphemeLength += graphemer.countGraphemes(segments.text);
+            byteLength += encoder.encode(segment.text).byteLength;
+            graphemeLength += graphemer.countGraphemes(segment.text);
             facets.push({
               index: { byteStart, byteEnd: byteLength },
-              features: [{ $type: "app.bsky.richtext.facet#tag", tag: segments.text.slice(1) }],
+              features: [{ $type: "app.bsky.richtext.facet#tag", tag: segment.text.slice(1) }],
             });
             break;
           }
           case "tco": {
-            const url = await segments.data.tco;
+            const url = await segment.data.tco;
             if (
               !url.startsWith(`https://twitter.com/i/web/status/${dob.uid}`) &&
               !url.startsWith(`${dob.account.url}/status/${dob.uid}`)
@@ -160,15 +161,15 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
               const byteStart = byteLength;
               byteLength += encoder.encode(hostname).byteLength;
               graphemeLength += graphemer.countGraphemes(hostname);
-              segments.text = hostname;
+              segment.text = hostname;
               facets.push({
                 index: { byteStart, byteEnd: byteLength },
                 features: [{ $type: "app.bsky.richtext.facet#link", uri: url }],
               });
-              if (segments.data.padEnd) {
+              if (segment.data.padEnd) {
                 byteLength++;
                 graphemeLength++;
-                segments.text += " ";
+                segment.text += " ";
               }
             }
             break;
@@ -176,8 +177,8 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
           default:
             break;
         }
-        segments.data.byteEnd = byteLength;
-        segments.data.graphemeEnd = graphemeLength;
+        segment.data.byteEnd = byteLength;
+        segment.data.graphemeEnd = graphemeLength;
       }
       const account = `${dob.account.account_name}@${dob.account.account_id}`;
       const footer = `${account} ⧉🐦︎`;
