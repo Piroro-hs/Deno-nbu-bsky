@@ -208,7 +208,7 @@ export async function dob2Bsky(dob: Dob): Promise<PostMediaUnresolved> {
           end++;
         }
         textSegments.splice(end, Infinity, { text: "…", data: { type: "text" } });
-        byteLength = textSegments[end - 1].data.byteEnd!;
+        byteLength = textSegments[end - 1].data.byteEnd! + 3; // …
         graphemeLength = textSegments[end - 1].data.graphemeEnd!;
       }
       if (textSegments.some(({ text }) => text)) {
