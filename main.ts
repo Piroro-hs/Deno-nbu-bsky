@@ -64,16 +64,18 @@ async function main() {
     prev_at = dob.post_date;
     console.log(`Process id: ${dob.id}, time: ${dob.post_date.getTime()}`);
     console.debug(dob);
-    await (async () => post(await dob2Bsky(dob)))().then(() => {
-      console.log(`Posted id: ${dob.id}, time: ${dob.post_date.getTime()}`);
-      return new Promise((resolve) => setTimeout(resolve, 10000));
-    }, (err) => {
-      if (err instanceof Error && err.message === "Skipped as reply") {
-        console.log(err.message);
-      } else {
-        return Promise.reject(err);
-      }
-    });
+    if (!(Deno.env.get("SKIP_YT") && dob.source_type === "yt")) {
+      await (async () => post(await dob2Bsky(dob)))().then(() => {
+        console.log(`Posted id: ${dob.id}, time: ${dob.post_date.getTime()}`);
+        return new Promise((resolve) => setTimeout(resolve, 10000));
+      }, (err) => {
+        if (err instanceof Error && err.message === "Skipped as reply") {
+          console.log(err.message);
+        } else {
+          return Promise.reject(err);
+        }
+      });
+    }
     latest_processed = {
       id: Math.max(dob_raw.id, latest_processed.id),
       at: new Date(Math.max(dob_raw.post_date.getTime(), latest_processed.at.getTime())),
